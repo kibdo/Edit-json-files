@@ -1,0 +1,171 @@
+{%extends 'main/base.html'%}
+
+{%block content%}
+    <div class='alert alert-success' role='alert'></div>
+    <div class='alert alert-danger' role='alert'></div>
+    <div class='container'>
+        
+        <div class="tabs">
+            {%for file in json_files_in_dir%}
+            <div class="tab">
+                <button id='tab-{{file}}' data-table-id='table-{{file}}' data-filename='{{file}}' data-save-url="{{url_for('main.save_json', filename=file+'.json')}}" class='json-file-tab' data-get-json-url="{{url_for('main.get_json_file', filename=file +'.json')}}">
+                    {{file}} 
+                </button>
+                
+            </div>
+            {%endfor%}
+        </div>
+        <div class="buttons-div">
+            <a id='save-button' href="#">Save</a>
+            <a id='add-row' href="#">Add row</a>
+        </div>
+        <div class="table-div">
+            {%for file in json_files_in_dir%}
+                <table class='table' data-test = 'kk' id="table-{{file}}" ></table>
+            {%endfor%}
+        </div>
+        
+    </div>
+    
+
+    
+    <script>
+        $(document).ready(function(){
+            let active_tab = $('.json-file-tab').first();
+            let active_tab_table = $('.json-file-tab').first().attr('data-table-id');
+            let active_table_save_url = $('.json-file-tab').first().attr('data-save-url');
+            function show_hide_tables(show_table=$('.json-file-tab').first()){
+                $.each($('table'), function(index, value){
+                    $(value).hide();
+                });
+                let table = $('#'+$(show_table).attr('data-table-id')).show();
+            }
+            function delete_row(){
+                $('button').on('click', function(){
+                    $('table').rsLiteGrid('delRow', $(this))
+                });
+            };
+            function render_table(table_id, columns, rows){
+                $('#'+table_id).rsLiteGrid({
+                    cols: columns,
+                    onAddRow: function(event, $newRow, index){
+                        delete_row();
+                }
+                });
+                $('#'+table_id).addSortWidget('{{url_for("static", filename="javascript/jQuery-Sortable-Table-Plugin")}}');
+                //set table data
+                $('#'+table_id).rsLiteGrid('setData',rows);
+                delete_row();
+                
+            }
+            function remove_empty_rows(uncleaned_rows){
+                let rows = uncleaned_rows;
+                let new_row = []
+                $.each(rows, function(index, value){
+                    let total_length_of_keys = Object.keys(value).length
+                    let count_of_blank_keys = 0;
+                    let i=0;
+                    
+                    while (i < total_length_of_keys){
+                        if (value[Object.keys(value)[i]] < 1){
+                            count_of_blank_keys+=1
+                        }
+                        i++;
+                    };
+                    if (count_of_blank_keys != total_length_of_keys){
+                        new_row.push(value);
+                    }
+                })
+                return new_row
+            }
+            $.each( $('.json-file-tab'), function(index, value){
+                let table_id = $(value).attr('data-table-id');
+                
+                $.ajax({
+                    url: $(value).attr('data-get-json-url'),
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response){
+                        let columns = JSON.parse(response.columns);
+                        let rows = JSON.parse(response.rows);
+                        //create table
+                        render_table(table_id, columns, rows);
+                        show_hide_tables();
+                    }
+
+                });
+                
+            });
+            function change_active_tab_css_properties(active_tab){
+                $.each($('.json-file-tab'), function(index, value){
+                    
+                    $(value).css({
+                        'border': '0px',
+                        'padding': '3px 10px',
+                        'margin': '0px 3px',
+                        'color': 'black',
+                        'background-color': 'rgb(224, 221, 221)',
+                        'border': '1px solid #bdbdbd',
+                        'transition-property': 'background-color',
+                        'border-radius': '5px 5px 0px 0px',
+                        'transition-duration': '0.4s',
+                    });
+                });
+                active_tab.css({
+                        'background-color': '#ccc',
+                        'color': 'black',
+                        'border-color': 'rgb(43, 42, 42)',
+                    });
+            }
+            
+            $('.json-file-tab').on('click', function(event){
+                active_tab = $(this)
+                active_tab_table = $(this).attr('data-table-id')
+                active_table_save_url = $(this).attr('data-save-url');
+                show_hide_tables(this);
+                change_active_tab_css_properties(active_tab);
+                event.preventDefault();
+            });
+            
+
+            $('#save-button').on('click', function(event){
+                let get_table_data = JSON.stringify(remove_empty_rows($('#'+active_tab_table).rsLiteGrid('getData')));
+                $.ajax({
+                    url: active_table_save_url,
+                    type: 'POST',
+                    contenType: 'application/json',
+                    data: {'data': get_table_data},
+                    success: function(response){
+                        if (response.success){
+                            $('.alert-success').text(response.success);
+                            $('.alert-success').slideDown().delay(1000).slideUp().hide(0);
+                        }
+                        else if(response.error){
+                            $('.alert-error').text(response.error);
+                            $('.alert-error').slideDown().delay(1000).slideUp().hide(0);
+                        }
+                        
+                    }
+                });
+                
+                event.preventDefault();
+            });
+
+            $('#add-row').on('click', function(event){
+                $('#'+active_tab_table).rsLiteGrid('addRow', $('#'+active_tab_table).rsLiteGrid('getData'));
+                event.preventDefault();
+            })
+            $('.close-tab').on('click', function(event){
+                let tab = $('#'+$(this).attr('data-tab-id'));
+                let table_id = $('#'+$(this).attr('data-tab-id')).attr('data-table-id');
+                let table = $('#'+table_id)
+                table.remove();
+                tab.remove();
+                event.preventDefault();
+            });
+            //called __init__ functions
+            change_active_tab_css_properties(active_tab);
+        });
+  
+    </script>
+{%endblock%}
